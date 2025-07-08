@@ -33,11 +33,10 @@ services:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
     command: >
-      sh -c "
-        sleep 10 &&
-        ollama pull phi3:mini
-      "
+      "sleep 15 &&
+       OLLAMA_HOST=http://ollama:11434 ollama pull phi3:mini"
     restart: "no"
 
 volumes:
