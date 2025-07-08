@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .search-form {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            align-items: end;
+        }
+        .form-group {
+            flex: 1;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .result-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            background: #fafafa;
+        }
+        .result-header {
+            display: flex;
+            justify-content: between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        .product-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+        .price {
+            font-size: 24px;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .site-info {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .site-name {
+            color: #666;
+            font-size: 14px;
+        }
+        .visit-link {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .visit-link:hover {
+            background: #1e7e34;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .confidence {
+            color: #17a2b8;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛒 Price Comparison Tool</h1>
+        
+        <form class="search-form" onsubmit="searchPrices(event)">
+            <div class="form-group">
+                <label for="country">Country</label>
+                <select id="country" required>
+                    <option value="US">United States</option>
+                    <option value="IN">India</option>
+                    <option value="UK">United Kingdom</option>
+                    <option value="CA">Canada</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 2;">
+                <label for="query">Product Search</label>
+                <input type="text" id="query" placeholder="e.g., iPhone 16 Pro, 128GB" required>
+            </div>
+            <div class="form-group">
+                <button type="submit" id="searchBtn">Search Prices</button>
+            </div>
+        </form>
+
+        <div id="loading" class="loading" style="display: none;">
+            🔄 Searching for the best prices across multiple websites...
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        async function searchPrices(event) {
+            event.preventDefault();
+            
+            const country = document.getElementById('country').value;
+            const query = document.getElementById('query').value;
+            const searchBtn = document.getElementById('searchBtn');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const results = document.getElementById('results');
+            
+            // Reset UI
+            error.style.display = 'none';
+            results.innerHTML = '';
+            loading.style.display = 'block';
+            searchBtn.disabled = true;
+            searchBtn.textContent = 'Searching...';
+            
+            try {
+                const response = await fetch('/api/v1/prices', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ country, query })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Search failed');
+                }
+                
+                displayResults(data);
+                
+            } catch (err) {
+                error.textContent = `Error: ${err.message}`;
+                error.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search Prices';
+            }
+        }
+        
+        function displayResults(data) {
+            const results = document.getElementById('results');
+            
+            if (!data.results || data.results.length === 0) {
+                results.innerHTML = '<div class="no-results">No results found. Try a different search term.</div>';
+                return;
+            }
+            
+            let html = `<h3>Found ${data.count} results for "${data.query}" in ${data.country}</h3>`;
+            
+            data.results.forEach(result => {
+                const confidenceDisplay = result.confidence ? 
+                    `<span class="confidence">🎯 ${Math.round(result.confidence * 100)}% match</span>` : '';
+                
+                html += `
+                    <div class="result-item">
+                        <div class="result-header">
+                            <div class="product-name">${escapeHtml(result.productName)}</div>
+                            <div class="price">${result.currency} ${result.price}</div>
+                        </div>
+                        <div class="site-info">
+                            <span class="site-name">📍 ${result.site} ${confidenceDisplay}</span>
+                            <a href="${result.link}" target="_blank" class="visit-link">Visit Store</a>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            results.innerHTML = html;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Load example on page load
+        window.onload = function() {
+            document.getElementById('query').value = 'iPhone 16 Pro, 128GB';
+        };
+    </script>
+</body>
+</html>

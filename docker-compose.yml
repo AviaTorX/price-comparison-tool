@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  price-comparison:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - GIN_MODE=release
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - ollama
+      - ollama-setup
+    volumes:
+      - ./web:/root/web
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    restart: unless-stopped
+    
+  ollama-setup:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    command: >
+      sh -c "
+        sleep 10 &&
+        ollama pull phi3:mini
+      "
+    restart: "no"
+
+volumes:
+  ollama_data:
