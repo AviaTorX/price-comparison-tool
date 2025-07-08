@@ -38,7 +38,7 @@ func NewService(cfg *config.Config) *Service {
 	return &Service{
 		config: cfg,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 90 * time.Second,
 		},
 	}
 }
@@ -76,6 +76,9 @@ func (s *Service) FilterAndScoreProducts(ctx context.Context, query string, prod
 }
 
 func (s *Service) scoreProductMatch(ctx context.Context, query, productName string) (float64, error) {
+	// Create timeout context for LLM call
+	llmCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
 	prompt := fmt.Sprintf(`You are a product matching expert. Rate how well this product matches the search query on a scale from 0.0 to 1.0.
 
 Search Query: "%s"
@@ -100,7 +103,7 @@ Respond with only the numeric score (0.0-1.0), no explanation.
 
 Score:`, query, productName)
 
-	response, err := s.CallOllama(ctx, prompt)
+	response, err := s.CallOllama(llmCtx, prompt)
 	if err != nil {
 		return 0, err
 	}
@@ -112,6 +115,7 @@ Score:`, query, productName)
 
 func (s *Service) CallOllama(ctx context.Context, prompt string) (string, error) {
 	ollamaURL := s.config.OllamaHost + "/api/generate"
+	startTime := time.Now()
 	log.Printf("🔗 Attempting LLM connection to: %s", ollamaURL)
 	
 	reqBody := OllamaRequest{
@@ -134,12 +138,44 @@ func (s *Service) CallOllama(ctx context.Context, prompt string) (string, error)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		log.Printf("❌ LLM connection failed to %s: %v", ollamaURL, err)
+		elapsedTime := time.Since(startTime)
+		log.Printf("❌ LLM connection failed to %s: %v (took: %.2fs)", ollamaURL, err, elapsedTime.Seconds())
+		
+		// Retry logic with exponential backoff
+		if elapsedTime < 60*time.Second {
+			log.Printf("🔄 Retrying LLM call after brief delay...")
+			time.Sleep(2 * time.Second)
+			
+			// Retry once
+			retryStart := time.Now()
+			resp, retryErr := s.httpClient.Do(req)
+			if retryErr == nil {
+				defer resp.Body.Close()
+				retryElapsed := time.Since(retryStart)
+				log.Printf("✅ LLM retry successful (took: %.2fs)", retryElapsed.Seconds())
+				
+				body, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return "", err
+				}
+				
+				var ollamaResp OllamaResponse
+				if err := json.Unmarshal(body, &ollamaResp); err != nil {
+					return "", err
+				}
+				
+				return ollamaResp.Response, nil
+			} else {
+				log.Printf("❌ LLM retry also failed: %v", retryErr)
+			}
+		}
+		
 		return "", err
 	}
 	defer resp.Body.Close()
 
-	log.Printf("✅ LLM connection successful to %s (status: %d)", ollamaURL, resp.StatusCode)
+	elapsedTime := time.Since(startTime)
+	log.Printf("✅ LLM connection successful to %s (status: %d, took: %.2fs)", ollamaURL, resp.StatusCode, elapsedTime.Seconds())
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

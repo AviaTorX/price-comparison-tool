@@ -324,24 +324,7 @@ func (s *Service) loadSiteConfigs() {
 			},
 			RateLimit: 2000,
 		},
-		// Additional Indian Sites
-		{
-			Name:       "Amazon Fresh India",
-			BaseURL:    "https://www.amazon.in",
-			SearchPath: "/s?k=",
-			Countries:  []string{"IN"},
-			Selectors: models.SiteSelectors{
-				Product:  "[data-component-type='s-search-result']",
-				Price:    ".a-price-whole, .a-offscreen",
-				Title:    "[data-cy='title-recipe-title'] span, h2 a span",
-				Link:     "h2 a",
-				Currency: ".a-price-symbol",
-			},
-			Headers: map[string]string{
-				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-			},
-			RateLimit: 2000,
-		},
+		// Additional Indian Sites - Removed Amazon Fresh India (duplicate of Amazon India)
 		{
 			Name:       "Myntra",
 			BaseURL:    "https://www.myntra.com",
