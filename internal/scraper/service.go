@@ -281,15 +281,20 @@ func (s *Service) FetchPrices(ctx context.Context, country, query string) ([]mod
 		allResults = append(allResults, result.Products...)
 	}
 	
-	// Temporarily disable LLM processing for debugging
 	log.Printf("Found %d raw results before filtering", len(allResults))
 	
-	// Add fuzzy confidence scores
-	for i := range allResults {
-		allResults[i].Confidence = s.matcher.FuzzyProductMatch(query, allResults[i].ProductName)
+	// Use LLM with fuzzy fallback for better accuracy
+	filteredResults, err := s.matcher.FilterAndScoreProducts(ctx, query, allResults)
+	if err != nil {
+		log.Printf("LLM filtering failed, using fuzzy matching: %v", err)
+		// Fallback to fuzzy matching if LLM fails
+		for i := range allResults {
+			allResults[i].Confidence = s.matcher.FuzzyProductMatch(query, allResults[i].ProductName)
+		}
+		return allResults, nil
 	}
 	
-	return allResults, nil
+	return filteredResults, nil
 }
 
 func (s *Service) scrapeWebsite(ctx context.Context, site models.SiteConfig, query, country string) models.ScrapingResult {

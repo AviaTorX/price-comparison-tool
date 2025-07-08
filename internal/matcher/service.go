@@ -75,17 +75,27 @@ func (s *Service) FilterAndScoreProducts(ctx context.Context, query string, prod
 }
 
 func (s *Service) scoreProductMatch(ctx context.Context, query, productName string) (float64, error) {
-	prompt := fmt.Sprintf(`Rate how well this product matches the search query on a scale from 0.0 to 1.0.
+	prompt := fmt.Sprintf(`You are a product matching expert. Rate how well this product matches the search query on a scale from 0.0 to 1.0.
 
 Search Query: "%s"
 Product Name: "%s"
 
-Consider:
-- Exact product matches (brand, model, specifications)
-- Similar or alternative products
-- Completely unrelated products should score very low
+Scoring Guidelines:
+- 1.0: Perfect match (exact product, brand, model, specs)
+- 0.8-0.9: Excellent match (same product, minor spec differences)
+- 0.6-0.7: Good match (same brand/category, different model/version)
+- 0.4-0.5: Moderate match (related products, accessories, or alternatives)
+- 0.2-0.3: Weak match (same category but different brand/purpose)
+- 0.0-0.1: No match (completely unrelated products)
 
-Respond with only a number between 0.0 and 1.0, no explanation.
+Examples:
+- Query: "iPhone 15 128GB" vs "Apple iPhone 15 - 128GB Black" = 1.0
+- Query: "iPhone 15" vs "iPhone 14 Pro" = 0.7  
+- Query: "iPhone 15" vs "iPhone Case for 15" = 0.4
+- Query: "iPhone 15" vs "Samsung Galaxy S24" = 0.2
+- Query: "iPhone 15" vs "Laptop Charger" = 0.0
+
+Respond with only the numeric score (0.0-1.0), no explanation.
 
 Score:`, query, productName)
 
