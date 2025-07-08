@@ -165,7 +165,28 @@
         </form>
 
         <div id="loading" class="loading" style="display: none;">
-            🔄 Searching for the best prices across multiple websites...
+            🔄 Searching for the best prices across multiple websites...<br>
+            
+            <div id="progress-container" style="margin-top: 15px;">
+                <div style="width: 100%; background-color: #f0f0f0; border-radius: 10px; overflow: hidden;">
+                    <div id="countdown-progress" style="width: 0%; height: 25px; background: linear-gradient(90deg, #007bff, #28a745); border-radius: 10px; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">
+                        <span id="progress-text">0%</span>
+                    </div>
+                </div>
+                
+                <div id="timer-info" style="margin-top: 10px; display: flex; justify-content: space-between; font-size: 14px;">
+                    <span style="color: #007bff; font-weight: bold;">
+                        ⏱️ <span id="elapsed-time">0</span>s elapsed
+                    </span>
+                    <span style="color: #28a745; font-weight: bold;">
+                        🎯 ~<span id="remaining-time">30</span>s remaining
+                    </span>
+                </div>
+                
+                <div style="margin-top: 8px; font-size: 13px; color: #666; text-align: center;">
+                    💡 AI-powered extraction with reliable fallback
+                </div>
+            </div>
         </div>
 
         <div id="streaming-status" class="loading" style="display: none;">
@@ -201,6 +222,10 @@
             const loading = document.getElementById('loading');
             const error = document.getElementById('error');
             const results = document.getElementById('results');
+            const elapsedTimeElement = document.getElementById('elapsed-time');
+            const remainingTimeElement = document.getElementById('remaining-time');
+            const progressBar = document.getElementById('countdown-progress');
+            const progressText = document.getElementById('progress-text');
             
             // Reset UI
             error.style.display = 'none';
@@ -208,6 +233,43 @@
             loading.style.display = 'block';
             searchBtn.disabled = true;
             searchBtn.textContent = 'Searching...';
+            
+            // Estimate completion time based on country (number of sites) - more realistic timing
+            const siteCount = getSiteCountForCountry(country);
+            const estimatedTime = Math.max(30, siteCount * 7); // 30s minimum, 7s per site
+            
+            // Initialize timer display
+            remainingTimeElement.textContent = estimatedTime;
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+            
+            // Start enhanced timer
+            let startTime = Date.now();
+            let timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const remaining = Math.max(0, estimatedTime - elapsed);
+                // Cap progress at 95% until API actually completes
+                const progress = Math.min(95, (elapsed / estimatedTime) * 100);
+                
+                elapsedTimeElement.textContent = elapsed;
+                remainingTimeElement.textContent = remaining;
+                progressBar.style.width = progress + '%';
+                progressText.textContent = Math.floor(progress) + '%';
+                
+                // Change progress bar color as it progresses
+                if (progress < 50) {
+                    progressBar.style.background = 'linear-gradient(90deg, #007bff, #17a2b8)';
+                } else if (progress < 80) {
+                    progressBar.style.background = 'linear-gradient(90deg, #17a2b8, #ffc107)';
+                } else {
+                    progressBar.style.background = 'linear-gradient(90deg, #ffc107, #28a745)';
+                }
+                
+                // Update remaining time display when approaching completion
+                if (progress >= 90) {
+                    remainingTimeElement.textContent = "finalizing...";
+                }
+            }, 500); // Update every 500ms for smoother animation
             
             try {
                 const response = await fetch('/api/v1/prices', {
@@ -224,16 +286,42 @@
                     throw new Error(data.error || 'Search failed');
                 }
                 
+                // Complete the progress bar when results actually arrive
+                progressBar.style.width = '100%';
+                progressText.textContent = '100%';
+                progressBar.style.background = 'linear-gradient(90deg, #28a745, #20c997)';
+                remainingTimeElement.textContent = "0";
+                
+                // Show completion message briefly
+                const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+                elapsedTimeElement.textContent = finalElapsed;
+                
                 displayResults(data);
                 
             } catch (err) {
                 error.textContent = `Error: ${err.message}`;
                 error.style.display = 'block';
             } finally {
+                // Stop timer
+                clearInterval(timerInterval);
                 loading.style.display = 'none';
                 searchBtn.disabled = false;
                 searchBtn.textContent = 'Search Prices';
             }
+        }
+        
+        function getSiteCountForCountry(country) {
+            const siteCounts = {
+                'US': 5,    // Amazon, eBay, Walmart, Target, Best Buy
+                'IN': 4,    // Amazon, Flipkart, Snapdeal, Myntra
+                'CA': 3,    // Amazon, eBay, Walmart
+                'UK': 2,    // Amazon, eBay
+                'DE': 1,    // Amazon
+                'FR': 1,    // Amazon
+                'JP': 1,    // Amazon
+                'AU': 1     // Amazon
+            };
+            return siteCounts[country] || 2;
         }
 
         function searchPricesStreaming(country, query) {
