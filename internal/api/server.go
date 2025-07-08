@@ -84,7 +84,7 @@ func (s *Server) getPrices(c *gin.Context) {
 		return
 	}
 
-	sortResultsByPrice(results)
+	sortResultsByConfidenceAndPrice(results)
 
 	response := models.PriceResponse{
 		Results: results,
@@ -110,8 +110,14 @@ func (s *Server) indexHandler(c *gin.Context) {
 	})
 }
 
-func sortResultsByPrice(results []models.ProductResult) {
+func sortResultsByConfidenceAndPrice(results []models.ProductResult) {
 	sort.Slice(results, func(i, j int) bool {
+		// First, sort by confidence score (descending - higher confidence first)
+		if results[i].Confidence != results[j].Confidence {
+			return results[i].Confidence > results[j].Confidence
+		}
+		
+		// If confidence is the same, sort by price (ascending - lower price first)
 		priceI, errI := parsePrice(results[i].Price)
 		priceJ, errJ := parsePrice(results[j].Price)
 		

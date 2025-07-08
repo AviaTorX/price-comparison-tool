@@ -1,11 +1,15 @@
 module price-comparison-tool
 
-go 1.19
+go 1.21
+
+toolchain go1.21.13
 
 require (
+	github.com/agnivade/levenshtein v1.2.1
 	github.com/gin-contrib/cors v1.4.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/gocolly/colly/v2 v2.1.0
+	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342
 )
 
 require (

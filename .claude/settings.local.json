@@ -20,7 +20,11 @@
       "Bash(docker-compose build:*)",
       "Bash(gh repo create:*)",
       "Bash(git remote:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(ssh-add:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

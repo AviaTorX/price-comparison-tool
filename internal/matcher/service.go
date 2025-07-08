@@ -9,8 +9,12 @@ import (
 	"net/http"
 	"price-comparison-tool/internal/config"
 	"price-comparison-tool/internal/models"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/agnivade/levenshtein"
+	"github.com/xrash/smetrics"
 )
 
 type Service struct {
@@ -48,8 +52,8 @@ func (s *Service) FilterAndScoreProducts(ctx context.Context, query string, prod
 	for _, product := range products {
 		score, err := s.scoreProductMatch(ctx, query, product.ProductName)
 		if err != nil {
-			// If LLM fails, use basic scoring
-			score = s.BasicProductMatch(query, product.ProductName)
+			// If LLM fails, use fuzzy scoring
+			score = s.FuzzyProductMatch(query, product.ProductName)
 		}
 		
 		// Only include products with reasonable confidence (lowered threshold)
@@ -59,10 +63,10 @@ func (s *Service) FilterAndScoreProducts(ctx context.Context, query string, prod
 		}
 	}
 	
-	// If filtering removed all products, return original list with basic scores
+	// If filtering removed all products, return original list with fuzzy scores
 	if len(filteredProducts) == 0 && len(products) > 0 {
 		for _, product := range products {
-			product.Confidence = s.BasicProductMatch(query, product.ProductName)
+			product.Confidence = s.FuzzyProductMatch(query, product.ProductName)
 			filteredProducts = append(filteredProducts, product)
 		}
 	}
@@ -207,4 +211,192 @@ func (s *Service) BasicProductMatch(query, productName string) float64 {
 	}
 	
 	return score
+}
+
+// FuzzyProductMatch uses fuzzy string matching with semantic bonuses for better product matching
+func (s *Service) FuzzyProductMatch(query, productName string) float64 {
+	if query == "" || productName == "" {
+		return 0.0
+	}
+
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+	productLower := strings.ToLower(strings.TrimSpace(productName))
+
+	// Stage 1: Calculate base fuzzy similarity using Jaro-Winkler
+	jaroWinkler := smetrics.JaroWinkler(queryLower, productLower, 0.7, 4)
+	
+	// Also calculate Levenshtein-based similarity for comparison
+	maxLen := len(queryLower)
+	if len(productLower) > maxLen {
+		maxLen = len(productLower)
+	}
+	if maxLen == 0 {
+		return 0.0
+	}
+	
+	levenshteinDist := levenshtein.ComputeDistance(queryLower, productLower)
+	levenshteinSim := 1.0 - float64(levenshteinDist)/float64(maxLen)
+	
+	// Use the higher of the two similarity scores as base
+	baseSimilarity := jaroWinkler
+	if levenshteinSim > jaroWinkler {
+		baseSimilarity = levenshteinSim
+	}
+
+	// Stage 2: Add semantic bonuses
+	score := baseSimilarity
+	
+	// Brand matching bonus
+	brandBonus := s.calculateBrandBonus(queryLower, productLower)
+	score += brandBonus
+	
+	// Model/number matching bonus  
+	modelBonus := s.calculateModelBonus(queryLower, productLower)
+	score += modelBonus
+	
+	// Storage/specification matching bonus
+	specBonus := s.calculateSpecBonus(queryLower, productLower)
+	score += specBonus
+	
+	// Stage 3: Apply penalties for clearly irrelevant products
+	penalty := s.calculateRelevancePenalty(queryLower, productLower)
+	score -= penalty
+
+	// Ensure score stays within 0.0 to 1.0 range
+	if score > 1.0 {
+		score = 1.0
+	} else if score < 0.0 {
+		score = 0.0
+	}
+
+	return score
+}
+
+func (s *Service) calculateBrandBonus(query, product string) float64 {
+	brands := []string{"apple", "iphone", "samsung", "galaxy", "google", "pixel", "oneplus", "xiaomi", "huawei", "oppo", "vivo", "realme"}
+	
+	queryBrand := ""
+	productBrand := ""
+	
+	// Find brand in query and product
+	for _, brand := range brands {
+		if strings.Contains(query, brand) {
+			queryBrand = brand
+		}
+		if strings.Contains(product, brand) {
+			productBrand = brand
+		}
+	}
+	
+	// Special handling for iPhone (Apple product)
+	if strings.Contains(query, "iphone") && strings.Contains(product, "apple") {
+		queryBrand = "apple"
+		productBrand = "apple"
+	}
+	if strings.Contains(query, "apple") && strings.Contains(product, "iphone") {
+		queryBrand = "apple"
+		productBrand = "apple"
+	}
+	
+	if queryBrand != "" && queryBrand == productBrand {
+		return 0.3 // Strong brand match bonus
+	} else if queryBrand != "" && productBrand != "" && queryBrand != productBrand {
+		return -0.2 // Different brand penalty
+	}
+	
+	return 0.0
+}
+
+func (s *Service) calculateModelBonus(query, product string) float64 {
+	// Extract numbers/models from both strings
+	numRegex := regexp.MustCompile(`\d+`)
+	queryNumbers := numRegex.FindAllString(query, -1)
+	productNumbers := numRegex.FindAllString(product, -1)
+	
+	if len(queryNumbers) == 0 || len(productNumbers) == 0 {
+		return 0.0
+	}
+	
+	matchCount := 0
+	for _, qNum := range queryNumbers {
+		for _, pNum := range productNumbers {
+			if qNum == pNum {
+				matchCount++
+				break
+			}
+		}
+	}
+	
+	if matchCount > 0 {
+		similarity := float64(matchCount) / float64(len(queryNumbers))
+		return similarity * 0.2 // Model number match bonus
+	}
+	
+	return 0.0
+}
+
+func (s *Service) calculateSpecBonus(query, product string) float64 {
+	bonus := 0.0
+	
+	// Storage matching
+	storageRegex := regexp.MustCompile(`(\d+)\s*(gb|tb)`)
+	queryStorage := storageRegex.FindAllString(query, -1)
+	productStorage := storageRegex.FindAllString(product, -1)
+	
+	for _, qStorage := range queryStorage {
+		for _, pStorage := range productStorage {
+			if strings.EqualFold(qStorage, pStorage) {
+				bonus += 0.15
+			}
+		}
+	}
+	
+	// Color matching
+	colors := []string{"black", "white", "red", "blue", "green", "yellow", "purple", "pink", "gold", "silver", "gray", "grey"}
+	for _, color := range colors {
+		if strings.Contains(query, color) && strings.Contains(product, color) {
+			bonus += 0.05
+		}
+	}
+	
+	// Condition matching
+	conditions := []string{"new", "used", "refurbished", "renewed", "good", "excellent", "fair"}
+	for _, condition := range conditions {
+		if strings.Contains(query, condition) && strings.Contains(product, condition) {
+			bonus += 0.05
+		}
+	}
+	
+	return bonus
+}
+
+func (s *Service) calculateRelevancePenalty(query, product string) float64 {
+	penalty := 0.0
+	
+	// If query is for a phone but product is clearly an accessory
+	phoneTerms := []string{"iphone", "galaxy", "pixel", "phone", "smartphone"}
+	accessoryTerms := []string{"case", "cover", "charger", "cable", "screen protector", "tempered glass", "stand", "holder", "adapter"}
+	
+	queryIsPhone := false
+	productIsAccessory := false
+	
+	for _, term := range phoneTerms {
+		if strings.Contains(query, term) {
+			queryIsPhone = true
+			break
+		}
+	}
+	
+	for _, term := range accessoryTerms {
+		if strings.Contains(product, term) {
+			productIsAccessory = true
+			break
+		}
+	}
+	
+	if queryIsPhone && productIsAccessory {
+		penalty += 0.4 // Heavy penalty for phone query matching accessories
+	}
+	
+	return penalty
 }

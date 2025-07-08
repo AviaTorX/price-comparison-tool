@@ -188,6 +188,38 @@ func (s *Service) loadSiteConfigs() {
 			},
 			RateLimit: 2000,
 		},
+		{
+			Name:       "Walmart US",
+			BaseURL:    "https://www.walmart.com",
+			SearchPath: "/search?q=",
+			Countries:  []string{"US"},
+			Selectors: models.SiteSelectors{
+				Product:  "[data-testid='item-stack']",
+				Price:    "[data-automation-id='product-price']",
+				Title:    "[data-automation-id='product-title']",
+				Link:     "[data-automation-id='product-title'] a",
+			},
+			Headers: map[string]string{
+				"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+			},
+			RateLimit: 2500,
+		},
+		{
+			Name:       "Walmart Canada",
+			BaseURL:    "https://www.walmart.ca",
+			SearchPath: "/search?q=",
+			Countries:  []string{"CA"},
+			Selectors: models.SiteSelectors{
+				Product:  "[data-testid='product-tile']",
+				Price:    "[data-testid='price-current']",
+				Title:    "[data-testid='product-title']",
+				Link:     "[data-testid='product-title'] a",
+			},
+			Headers: map[string]string{
+				"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+			},
+			RateLimit: 2500,
+		},
 	}
 }
 
@@ -252,9 +284,9 @@ func (s *Service) FetchPrices(ctx context.Context, country, query string) ([]mod
 	// Temporarily disable LLM processing for debugging
 	log.Printf("Found %d raw results before filtering", len(allResults))
 	
-	// Add basic confidence scores without LLM
+	// Add fuzzy confidence scores
 	for i := range allResults {
-		allResults[i].Confidence = s.matcher.BasicProductMatch(query, allResults[i].ProductName)
+		allResults[i].Confidence = s.matcher.FuzzyProductMatch(query, allResults[i].ProductName)
 	}
 	
 	return allResults, nil
@@ -288,7 +320,7 @@ func (s *Service) scrapeWebsite(ctx context.Context, site models.SiteConfig, que
 	
 	collector.OnHTML(site.Selectors.Product, func(e *colly.HTMLElement) {
 		// Limit results to prevent infinite processing
-		if len(products) >= 10 {
+		if len(products) >= 25 {
 			return
 		}
 		
