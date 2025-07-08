@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"price-comparison-tool/internal/config"
 	"price-comparison-tool/internal/models"
@@ -110,6 +111,9 @@ Score:`, query, productName)
 }
 
 func (s *Service) CallOllama(ctx context.Context, prompt string) (string, error) {
+	ollamaURL := s.config.OllamaHost + "/api/generate"
+	log.Printf("🔗 Attempting LLM connection to: %s", ollamaURL)
+	
 	reqBody := OllamaRequest{
 		Model:  "phi3:mini",
 		Prompt: prompt,
@@ -121,7 +125,7 @@ func (s *Service) CallOllama(ctx context.Context, prompt string) (string, error)
 		return "", err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", s.config.OllamaHost+"/api/generate", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", ollamaURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", err
 	}
@@ -130,9 +134,12 @@ func (s *Service) CallOllama(ctx context.Context, prompt string) (string, error)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
+		log.Printf("❌ LLM connection failed to %s: %v", ollamaURL, err)
 		return "", err
 	}
 	defer resp.Body.Close()
+
+	log.Printf("✅ LLM connection successful to %s (status: %d)", ollamaURL, resp.StatusCode)
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

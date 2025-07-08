@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 )
 
@@ -12,9 +13,12 @@ type Config struct {
 }
 
 func Load() *Config {
+	ollamaHost := getEnv("OLLAMA_HOST", "http://localhost:11434")
+	log.Printf("🔧 Config loaded - OLLAMA_HOST: %s", ollamaHost)
+	
 	return &Config{
 		Port:           getEnv("PORT", "8080"),
-		OllamaHost:     getEnv("OLLAMA_HOST", "http://localhost:11434"),
+		OllamaHost:     ollamaHost,
 		MaxConcurrency: 50,
 		RequestTimeout: 30,
 	}
