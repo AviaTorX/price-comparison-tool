@@ -156,10 +156,6 @@
                 <input type="text" id="query" placeholder="e.g., iPhone 16 Pro, 128GB" required>
             </div>
             <div class="form-group">
-                <label>
-                    <input type="checkbox" id="streamMode" style="width: auto; margin-right: 5px;"> 
-                    Real-time streaming
-                </label>
                 <button type="submit" id="searchBtn">Search Prices</button>
             </div>
         </form>
@@ -208,13 +204,8 @@
             
             const country = document.getElementById('country').value;
             const query = document.getElementById('query').value;
-            const streamMode = document.getElementById('streamMode').checked;
             
-            if (streamMode) {
-                searchPricesStreaming(country, query);
-            } else {
-                searchPricesStandard(country, query);
-            }
+            searchPricesStandard(country, query);
         }
 
         async function searchPricesStandard(country, query) {

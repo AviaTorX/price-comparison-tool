@@ -202,19 +202,6 @@ curl -X POST http://localhost:8080/api/v1/prices \
   jq '.results[0] | {site, price, currency, confidence}'
 ```
 
-## 🎯 Meta Hiring Task Compliance
-
-This system **100% satisfies** all Meta hiring requirements:
-
-✅ **Generic Tool**: Works across ALL countries and product categories  
-✅ **Multiple Websites**: 19+ major e-commerce platforms globally  
-✅ **Country-Based**: Intelligent country-specific site selection  
-✅ **Accurate Matching**: LLM-powered product relevance scoring  
-✅ **Price Ranking**: Results sorted by relevance and price (ascending)  
-✅ **Reliability**: Multi-layer fallback systems ensure 99%+ uptime  
-✅ **Performance**: Parallel processing with 30-second response times  
-
-**Test Query Verified**: `{"country": "US", "query":"iPhone 16 Pro, 128GB"}` ✅
 
 ## 🤝 Contributing
 
