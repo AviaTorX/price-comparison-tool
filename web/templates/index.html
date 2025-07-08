@@ -141,10 +141,14 @@
             <div class="form-group">
                 <label for="country">Country</label>
                 <select id="country" required>
-                    <option value="US">United States</option>
-                    <option value="IN">India</option>
-                    <option value="UK">United Kingdom</option>
-                    <option value="CA">Canada</option>
+                    <option value="US">🇺🇸 United States</option>
+                    <option value="IN">🇮🇳 India</option>
+                    <option value="UK">🇬🇧 United Kingdom</option>
+                    <option value="CA">🇨🇦 Canada</option>
+                    <option value="DE">🇩🇪 Germany</option>
+                    <option value="FR">🇫🇷 France</option>
+                    <option value="JP">🇯🇵 Japan</option>
+                    <option value="AU">🇦🇺 Australia</option>
                 </select>
             </div>
             <div class="form-group" style="flex: 2;">
@@ -152,12 +156,45 @@
                 <input type="text" id="query" placeholder="e.g., iPhone 16 Pro, 128GB" required>
             </div>
             <div class="form-group">
+                <label>
+                    <input type="checkbox" id="streamMode" style="width: auto; margin-right: 5px;"> 
+                    Real-time streaming
+                </label>
                 <button type="submit" id="searchBtn">Search Prices</button>
             </div>
         </form>
 
         <div id="loading" class="loading" style="display: none;">
-            🔄 Searching for the best prices across multiple websites...
+            🔄 Searching for the best prices across multiple websites...<br>
+            
+            <div id="progress-container" style="margin-top: 15px;">
+                <div style="width: 100%; background-color: #f0f0f0; border-radius: 10px; overflow: hidden;">
+                    <div id="countdown-progress" style="width: 0%; height: 25px; background: linear-gradient(90deg, #007bff, #28a745); border-radius: 10px; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">
+                        <span id="progress-text">0%</span>
+                    </div>
+                </div>
+                
+                <div id="timer-info" style="margin-top: 10px; display: flex; justify-content: space-between; font-size: 14px;">
+                    <span style="color: #007bff; font-weight: bold;">
+                        ⏱️ <span id="elapsed-time">0</span>s elapsed
+                    </span>
+                    <span style="color: #28a745; font-weight: bold;">
+                        🎯 ~<span id="remaining-time">30</span>s remaining
+                    </span>
+                </div>
+                
+                <div style="margin-top: 8px; font-size: 13px; color: #666; text-align: center;">
+                    💡 AI-powered extraction with reliable fallback
+                </div>
+            </div>
+        </div>
+
+        <div id="streaming-status" class="loading" style="display: none;">
+            <div id="progress-bar" style="width: 100%; background-color: #f0f0f0; border-radius: 10px; margin-bottom: 10px;">
+                <div id="progress-fill" style="width: 0%; height: 20px; background-color: #007bff; border-radius: 10px; transition: width 0.3s;"></div>
+            </div>
+            <div id="status-message">Starting search...</div>
+            <div id="site-status" style="margin-top: 10px; font-size: 14px;"></div>
         </div>
 
         <div id="error" class="error" style="display: none;"></div>
@@ -171,10 +208,24 @@
             
             const country = document.getElementById('country').value;
             const query = document.getElementById('query').value;
+            const streamMode = document.getElementById('streamMode').checked;
+            
+            if (streamMode) {
+                searchPricesStreaming(country, query);
+            } else {
+                searchPricesStandard(country, query);
+            }
+        }
+
+        async function searchPricesStandard(country, query) {
             const searchBtn = document.getElementById('searchBtn');
             const loading = document.getElementById('loading');
             const error = document.getElementById('error');
             const results = document.getElementById('results');
+            const elapsedTimeElement = document.getElementById('elapsed-time');
+            const remainingTimeElement = document.getElementById('remaining-time');
+            const progressBar = document.getElementById('countdown-progress');
+            const progressText = document.getElementById('progress-text');
             
             // Reset UI
             error.style.display = 'none';
@@ -182,6 +233,43 @@
             loading.style.display = 'block';
             searchBtn.disabled = true;
             searchBtn.textContent = 'Searching...';
+            
+            // Estimate completion time based on country (number of sites) - more realistic timing
+            const siteCount = getSiteCountForCountry(country);
+            const estimatedTime = Math.max(30, siteCount * 7); // 30s minimum, 7s per site
+            
+            // Initialize timer display
+            remainingTimeElement.textContent = estimatedTime;
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+            
+            // Start enhanced timer
+            let startTime = Date.now();
+            let timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const remaining = Math.max(0, estimatedTime - elapsed);
+                // Cap progress at 95% until API actually completes
+                const progress = Math.min(95, (elapsed / estimatedTime) * 100);
+                
+                elapsedTimeElement.textContent = elapsed;
+                remainingTimeElement.textContent = remaining;
+                progressBar.style.width = progress + '%';
+                progressText.textContent = Math.floor(progress) + '%';
+                
+                // Change progress bar color as it progresses
+                if (progress < 50) {
+                    progressBar.style.background = 'linear-gradient(90deg, #007bff, #17a2b8)';
+                } else if (progress < 80) {
+                    progressBar.style.background = 'linear-gradient(90deg, #17a2b8, #ffc107)';
+                } else {
+                    progressBar.style.background = 'linear-gradient(90deg, #ffc107, #28a745)';
+                }
+                
+                // Update remaining time display when approaching completion
+                if (progress >= 90) {
+                    remainingTimeElement.textContent = "finalizing...";
+                }
+            }, 500); // Update every 500ms for smoother animation
             
             try {
                 const response = await fetch('/api/v1/prices', {
@@ -198,16 +286,204 @@
                     throw new Error(data.error || 'Search failed');
                 }
                 
+                // Complete the progress bar when results actually arrive
+                progressBar.style.width = '100%';
+                progressText.textContent = '100%';
+                progressBar.style.background = 'linear-gradient(90deg, #28a745, #20c997)';
+                remainingTimeElement.textContent = "0";
+                
+                // Show completion message briefly
+                const finalElapsed = Math.floor((Date.now() - startTime) / 1000);
+                elapsedTimeElement.textContent = finalElapsed;
+                
                 displayResults(data);
                 
             } catch (err) {
                 error.textContent = `Error: ${err.message}`;
                 error.style.display = 'block';
             } finally {
+                // Stop timer
+                clearInterval(timerInterval);
                 loading.style.display = 'none';
                 searchBtn.disabled = false;
                 searchBtn.textContent = 'Search Prices';
             }
+        }
+        
+        function getSiteCountForCountry(country) {
+            const siteCounts = {
+                'US': 5,    // Amazon, eBay, Walmart, Target, Best Buy
+                'IN': 4,    // Amazon, Flipkart, Snapdeal, Myntra
+                'CA': 3,    // Amazon, eBay, Walmart
+                'UK': 2,    // Amazon, eBay
+                'DE': 1,    // Amazon
+                'FR': 1,    // Amazon
+                'JP': 1,    // Amazon
+                'AU': 1     // Amazon
+            };
+            return siteCounts[country] || 2;
+        }
+
+        function searchPricesStreaming(country, query) {
+            const searchBtn = document.getElementById('searchBtn');
+            const streamingStatus = document.getElementById('streaming-status');
+            const progressFill = document.getElementById('progress-fill');
+            const statusMessage = document.getElementById('status-message');
+            const siteStatus = document.getElementById('site-status');
+            const error = document.getElementById('error');
+            const results = document.getElementById('results');
+            
+            // Reset UI
+            error.style.display = 'none';
+            results.innerHTML = '';
+            streamingStatus.style.display = 'block';
+            searchBtn.disabled = true;
+            searchBtn.textContent = 'Streaming...';
+            
+            // Create EventSource for streaming (GET request with query parameters)
+            const streamUrl = `/api/v1/prices/stream?country=${encodeURIComponent(country)}&query=${encodeURIComponent(query)}`;
+            const eventSource = new EventSource(streamUrl);
+            
+            let allResults = [];
+            
+            // Handle different event types from Server-Sent Events
+            eventSource.addEventListener('result', function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleStreamingResult(data, allResults);
+                } catch (err) {
+                    console.error('Error parsing result data:', err);
+                }
+            });
+            
+            eventSource.addEventListener('complete', function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleStreamingComplete(data, allResults);
+                    eventSource.close();
+                } catch (err) {
+                    console.error('Error parsing complete data:', err);
+                }
+            });
+            
+            eventSource.addEventListener('error', function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleStreamingError(data);
+                    eventSource.close();
+                } catch (err) {
+                    console.error('Error parsing error data:', err);
+                }
+            });
+            
+            eventSource.onerror = function(err) {
+                console.error('Streaming error:', err);
+                error.textContent = 'Streaming connection failed';
+                error.style.display = 'block';
+                streamingStatus.style.display = 'none';
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search Prices';
+                eventSource.close();
+            };
+        }
+
+        function handleStreamingResult(data, allResults) {
+            const progressFill = document.getElementById('progress-fill');
+            const statusMessage = document.getElementById('status-message');
+            const siteStatus = document.getElementById('site-status');
+            const results = document.getElementById('results');
+            
+            // Update progress
+            if (data.progress !== undefined) {
+                progressFill.style.width = data.progress + '%';
+            }
+            
+            // Update status message
+            if (data.message) {
+                statusMessage.textContent = data.message;
+            }
+            
+            // Add site-specific status
+            if (data.site) {
+                const siteStatusHtml = `<div>📍 ${data.site}: ${data.status} ${data.products ? `(${data.products.length} products)` : ''}</div>`;
+                siteStatus.innerHTML += siteStatusHtml;
+            }
+            
+            // Add products to results as they come in
+            if (data.products && data.products.length > 0) {
+                allResults.push(...data.products);
+                displayStreamingResults(allResults, data.site);
+            }
+        }
+
+        function handleStreamingComplete(data, allResults) {
+            const streamingStatus = document.getElementById('streaming-status');
+            const searchBtn = document.getElementById('searchBtn');
+            
+            streamingStatus.style.display = 'none';
+            searchBtn.disabled = false;
+            searchBtn.textContent = 'Search Prices';
+            
+            // Sort final results by confidence and price
+            allResults.sort((a, b) => {
+                if (a.confidence !== b.confidence) {
+                    return b.confidence - a.confidence;
+                }
+                return parseFloat(a.price) - parseFloat(b.price);
+            });
+            
+            displayResults({
+                results: allResults,
+                query: data.query,
+                country: data.country,
+                count: allResults.length
+            });
+        }
+
+        function handleStreamingError(data) {
+            const error = document.getElementById('error');
+            const streamingStatus = document.getElementById('streaming-status');
+            const searchBtn = document.getElementById('searchBtn');
+            
+            error.textContent = `Streaming error: ${data.error}`;
+            error.style.display = 'block';
+            streamingStatus.style.display = 'none';
+            searchBtn.disabled = false;
+            searchBtn.textContent = 'Search Prices';
+        }
+
+        function displayStreamingResults(results, siteName) {
+            const resultsDiv = document.getElementById('results');
+            
+            // Create a header if it doesn't exist
+            if (!resultsDiv.querySelector('h3')) {
+                resultsDiv.innerHTML = `<h3>Live Results (${results.length} found so far...)</h3>`;
+            } else {
+                resultsDiv.querySelector('h3').textContent = `Live Results (${results.length} found so far...)`;
+            }
+            
+            // Add new results
+            const newResults = results.slice(-10); // Show last 10 results to avoid overwhelming
+            newResults.forEach(result => {
+                if (!resultsDiv.querySelector(`[data-link="${result.link}"]`)) {
+                    const confidenceDisplay = result.confidence ? 
+                        `<span class="confidence">🎯 ${Math.round(result.confidence * 100)}% match</span>` : '';
+                    
+                    const resultHtml = `
+                        <div class="result-item" data-link="${result.link}">
+                            <div class="result-header">
+                                <div class="product-name">${escapeHtml(result.productName)}</div>
+                                <div class="price">${result.currency} ${result.price}</div>
+                            </div>
+                            <div class="site-info">
+                                <span class="site-name">📍 ${result.site} ${confidenceDisplay} <span style="color: #28a745;">✨ New</span></span>
+                                <a href="${result.link}" target="_blank" class="visit-link">Visit Store</a>
+                            </div>
+                        </div>
+                    `;
+                    resultsDiv.insertAdjacentHTML('beforeend', resultHtml);
+                }
+            });
         }
         
         function displayResults(data) {

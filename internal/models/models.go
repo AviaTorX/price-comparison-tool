@@ -49,3 +49,12 @@ type ScrapingResult struct {
 	Site     string
 	Error    error
 }
+
+type StreamingResult struct {
+	Site       string          `json:"site"`
+	Products   []ProductResult `json:"products,omitempty"`
+	Status     string          `json:"status"` // "processing", "completed", "error"
+	Error      string          `json:"error,omitempty"`
+	Progress   int             `json:"progress"` // 0-100
+	Message    string          `json:"message,omitempty"`
+}
