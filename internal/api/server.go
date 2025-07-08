@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"price-comparison-tool/internal/config"
 	"price-comparison-tool/internal/models"
@@ -47,6 +48,7 @@ func (s *Server) setupRoutes() {
 	{
 		api.GET("/health", s.healthCheck)
 		api.POST("/prices", s.getPrices)
+		api.GET("/prices/stream", s.getPricesStream)
 		api.GET("/sites", s.getSupportedSites)
 	}
 
@@ -94,6 +96,64 @@ func (s *Server) getPrices(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+func (s *Server) getPricesStream(c *gin.Context) {
+	// Get parameters from query string for EventSource compatibility
+	country := c.Query("country")
+	query := c.Query("query")
+	
+	if country == "" || query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "country and query parameters are required"})
+		return
+	}
+	
+	req := models.PriceRequest{
+		Country: country,
+		Query:   query,
+	}
+
+	// Set headers for SSE (Server-Sent Events)
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+
+	// Create channel for streaming results
+	resultsChan := make(chan models.StreamingResult, 10)
+	
+	// Add timeout context
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+
+	// Start price fetching in goroutine
+	go func() {
+		defer close(resultsChan)
+		s.scraper.FetchPricesStreaming(ctx, req.Country, req.Query, resultsChan)
+	}()
+
+	// Stream results as they come in
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case result, ok := <-resultsChan:
+			if !ok {
+				// Channel closed, send final message
+				c.SSEvent("complete", gin.H{
+					"message": "All results fetched",
+					"query": req.Query,
+					"country": req.Country,
+				})
+				return false
+			}
+			
+			// Send individual result
+			c.SSEvent("result", result)
+			return true
+		case <-ctx.Done():
+			c.SSEvent("error", gin.H{"error": "Request timeout"})
+			return false
+		}
+	})
 }
 
 func (s *Server) getSupportedSites(c *gin.Context) {

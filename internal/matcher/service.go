@@ -99,7 +99,7 @@ Respond with only the numeric score (0.0-1.0), no explanation.
 
 Score:`, query, productName)
 
-	response, err := s.callOllama(ctx, prompt)
+	response, err := s.CallOllama(ctx, prompt)
 	if err != nil {
 		return 0, err
 	}
@@ -109,7 +109,7 @@ Score:`, query, productName)
 	return score, nil
 }
 
-func (s *Service) callOllama(ctx context.Context, prompt string) (string, error) {
+func (s *Service) CallOllama(ctx context.Context, prompt string) (string, error) {
 	reqBody := OllamaRequest{
 		Model:  "phi3:mini",
 		Prompt: prompt,
