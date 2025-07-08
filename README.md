@@ -1,6 +1,6 @@
 # 🛒 AI-Powered Price Comparison Tool
 
-A next-generation price comparison engine that uses **LLM-first architecture** to intelligently extract product information from e-commerce websites across multiple countries.
+A comprehensive price comparison engine that uses **AI-powered extraction** to intelligently gather product pricing from major e-commerce websites across 8 countries. Get accurate pricing with confidence scoring in seconds.
 
 ## 🚀 Key Features
 
@@ -10,14 +10,14 @@ A next-generation price comparison engine that uses **LLM-first architecture** t
 - **Robust Fallback**: Automatic fallback to CSS selectors when needed
 - **Confidence Scoring**: AI-powered relevance scoring (0-100%) for each result
 
-### ⚡ **Real-Time Streaming**
-- **Live Results**: See products appear as they're found from each website
-- **Progress Tracking**: Real-time progress bars and site-by-site status
-- **Streaming API**: Server-Sent Events for live updates
-- **Dual Mode UI**: Toggle between standard and streaming search modes
+### ⚡ **High Performance**
+- **Fast Results**: Get comprehensive pricing in 30-45 seconds
+- **Progress Tracking**: Visual progress bars with estimated completion times
+- **Parallel Processing**: Concurrent scraping across all sites for speed
+- **Smart Timeouts**: Optimized request handling for reliability
 
 ### 🌍 **Global Coverage**
-- **9 Countries**: US, Canada, UK, India, Germany, France, Japan, Australia
+- **8 Countries**: US, Canada, UK, India, Germany, France, Japan, Australia
 - **19+ E-commerce Sites**: Amazon (6 regions), eBay, Flipkart, Walmart, Target, Best Buy, etc.
 - **Universal Categories**: Electronics, fashion, home goods, and more
 
@@ -38,20 +38,15 @@ A next-generation price comparison engine that uses **LLM-first architecture** t
 
 2. **Access the web interface:**
    - **🌐 Web UI**: http://localhost:8080
-   - **Try the streaming mode** with "iPhone 16 Pro, 128GB" in India
-   - **Watch live results** appear in real-time!
+   - **Try searching** for "iPhone 16 Pro, 128GB" in India
+   - **Get comprehensive results** from all major e-commerce sites!
 
-3. **Test the API endpoints:**
+3. **Test the API endpoint:**
    ```bash
-   # Standard API
+   # Price Comparison API
    curl -X POST http://localhost:8080/api/v1/prices \
      -H "Content-Type: application/json" \
      -d '{"country": "IN", "query": "iPhone 16 Pro 128GB"}'
-   
-   # Streaming API (use EventSource in browser)
-   curl -X POST http://localhost:8080/api/v1/prices/stream \
-     -H "Content-Type: application/json" \
-     -d '{"country": "US", "query": "MacBook Air M2"}'
    ```
 
 ## 📊 Supported Markets
@@ -71,21 +66,27 @@ A next-generation price comparison engine that uses **LLM-first architecture** t
 
 ### Core Endpoints
 - **`GET /api/v1/health`** - System health check
-- **`POST /api/v1/prices`** - Standard price comparison
-- **`POST /api/v1/prices/stream`** - Real-time streaming results ✨ **NEW**
+- **`POST /api/v1/prices`** - Price comparison across all sites
 - **`GET /api/v1/sites`** - List all supported e-commerce sites
 
-### Streaming API Usage
-```javascript
-// JavaScript example for streaming
-const eventSource = new EventSource('/api/v1/prices/stream');
-eventSource.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    if (event.type === 'result') {
-        console.log('New products found:', data.products);
-        updateUI(data);
+### API Response Format
+```json
+{
+  "results": [
+    {
+      "productName": "iPhone 16 Pro 128GB",
+      "price": "107900",
+      "currency": "INR",
+      "site": "Flipkart",
+      "country": "IN",
+      "confidence": 0.95,
+      "link": "https://..."
     }
-};
+  ],
+  "query": "iPhone 16 Pro 128GB",
+  "country": "IN",
+  "count": 25
+}
 ```
 
 ## 🧪 Example Searches
@@ -146,9 +147,8 @@ Removal        (Skip ads/nav)     Understanding   Validation   Assessment     So
 ### Technology Stack
 - **🔧 Backend**: Go 1.21 with Gin framework
 - **🧠 AI/LLM**: Ollama with phi3:mini model for intelligent extraction
-- **📡 Streaming**: Server-Sent Events (SSE) for real-time updates
 - **🕷️ Scraping**: Colly with parallel processing and smart content targeting
-- **🎨 Frontend**: Modern HTML5/CSS3/JavaScript with progress tracking
+- **🎨 Frontend**: Modern HTML5/CSS3/JavaScript with enhanced progress tracking
 - **🐳 Deployment**: Docker Compose with multi-service orchestration
 
 ### Performance Optimizations
